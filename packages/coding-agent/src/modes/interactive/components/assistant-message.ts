@@ -1,8 +1,10 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Markdown, type MarkdownTheme, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
+import { PrefixedBlock } from "./prefixed-block.ts";
+import { formatThinkingDuration, ThinkingIndicator } from "./thinking-indicator.ts";
 
 const OSC133_ZONE_START = "\x1b]133;A\x07";
 const OSC133_ZONE_END = "\x1b]133;B\x07";
@@ -21,6 +23,15 @@ export class AssistantMessageComponent extends Container {
 	private lastMessage?: AssistantMessage;
 	private hasToolCalls = false;
 	private isStreaming = false;
+	private ui?: TUI;
+	// Thinking-run timing, keyed by the content index where each run starts.
+	// Only populated for runs observed live while streaming; historical runs
+	// (e.g. resumed sessions) have no measured duration.
+	private thinkingStartTimes = new Map<number, number>();
+	private thinkingDurations = new Map<number, number>();
+	// Reused across updateContent() calls so the glimmer animation keeps its
+	// phase and timer instead of restarting on every stream delta.
+	private thinkingIndicators = new Map<number, ThinkingIndicator>();
 
 	constructor(
 		message?: AssistantMessage,
@@ -29,8 +40,11 @@ export class AssistantMessageComponent extends Container {
 		hiddenThinkingLabel = "Thinking...",
 		outputPad = 1,
 		markdownTransformers: readonly MarkdownTransformer[] = [],
+		ui?: TUI,
 	) {
 		super();
+
+		this.ui = ui;
 
 		this.hideThinkingBlock = hideThinkingBlock;
 		this.markdownTheme = markdownTheme;
@@ -65,6 +79,14 @@ export class AssistantMessageComponent extends Container {
 		this.hiddenThinkingLabel = label;
 		if (this.lastMessage) {
 			this.updateContent(this.lastMessage);
+		}
+	}
+
+	private stopIndicator(runStart: number): void {
+		const indicator = this.thinkingIndicators.get(runStart);
+		if (indicator) {
+			indicator.stop();
+			this.thinkingIndicators.delete(runStart);
 		}
 	}
 
@@ -105,14 +127,20 @@ export class AssistantMessageComponent extends Container {
 		for (let i = 0; i < message.content.length; i++) {
 			const content = message.content[i];
 			if (content.type === "text" && content.text.trim()) {
-				// Assistant text messages with no background - trim the text
-				// Set paddingY=0 to avoid extra spacing before tool executions
+				// Claude Code style: "⏺ " bullet prefix, no background, continuation
+				// lines aligned under the text. paddingY=0 avoids extra spacing before
+				// tool executions.
 				this.contentContainer.addChild(
-					new Markdown(content.text.trim(), this.outputPad, 0, this.markdownTheme, undefined, {
-						transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
-					}),
+					new PrefixedBlock(
+						`${" ".repeat(this.outputPad)}${theme.fg("text", "⏺")} `,
+						this.outputPad + 2,
+						new Markdown(content.text.trim(), 0, 0, this.markdownTheme, undefined, {
+							transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
+						}),
+					),
 				);
 			} else if (content.type === "thinking") {
+				const runStart = i;
 				const thinkingBlocks: string[] = [];
 				for (; i < message.content.length; i++) {
 					const thinkingContent = message.content[i];
@@ -130,6 +158,20 @@ export class AssistantMessageComponent extends Container {
 					continue;
 				}
 
+				// A run is "active" while it is still streaming in: it reaches the end
+				// of the content array and no later content has started yet.
+				const runActive = this.isStreaming && i === message.content.length - 1;
+				if (runActive) {
+					if (!this.thinkingStartTimes.has(runStart)) {
+						this.thinkingStartTimes.set(runStart, Date.now());
+					}
+				} else {
+					const startTime = this.thinkingStartTimes.get(runStart);
+					if (startTime !== undefined && !this.thinkingDurations.has(runStart)) {
+						this.thinkingDurations.set(runStart, Date.now() - startTime);
+					}
+				}
+
 				// Add spacing only when another visible assistant content block follows.
 				// This avoids a superfluous blank line before separately-rendered tool execution blocks.
 				const hasVisibleContentAfter = message.content
@@ -137,11 +179,26 @@ export class AssistantMessageComponent extends Container {
 					.some((c) => (c.type === "text" && c.text.trim()) || (c.type === "thinking" && c.thinking.trim()));
 
 				if (this.hideThinkingBlock) {
-					// Show one static label for each run of thinking blocks when hidden.
-					this.contentContainer.addChild(
-						new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0),
-					);
+					if (runActive) {
+						// Show one glimmering label while this run of thinking blocks streams in.
+						let indicator = this.thinkingIndicators.get(runStart);
+						if (!indicator) {
+							indicator = new ThinkingIndicator(this.hiddenThinkingLabel, this.outputPad, this.ui);
+							indicator.start();
+							this.thinkingIndicators.set(runStart, indicator);
+						}
+						this.contentContainer.addChild(indicator);
+					} else {
+						this.stopIndicator(runStart);
+						const duration = this.thinkingDurations.get(runStart);
+						const label =
+							duration !== undefined ? `Thought for ${formatThinkingDuration(duration)}` : "Thought for a while";
+						this.contentContainer.addChild(
+							new Text(theme.italic(theme.fg("thinkingText", label)), this.outputPad, 0),
+						);
+					}
 				} else {
+					this.stopIndicator(runStart);
 					// Render each run of thinking blocks as one Markdown section.
 					this.contentContainer.addChild(
 						new Markdown(

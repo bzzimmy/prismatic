@@ -233,6 +233,8 @@ export interface EditorTheme {
 export interface EditorOptions {
 	paddingX?: number;
 	autocompleteMaxVisible?: number;
+	/** Prompt prefix rendered before the first line of input (e.g. "❯ "). May contain ANSI colors. */
+	promptPrefix?: string;
 }
 
 const SLASH_COMMAND_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
@@ -280,6 +282,7 @@ export class Editor implements Component, Focusable {
 	protected tui: TUI;
 	private theme: EditorTheme;
 	private paddingX: number = 0;
+	private promptPrefix: string = "";
 
 	// Store last render width for cursor navigation
 	private lastWidth: number = 80;
@@ -350,6 +353,18 @@ export class Editor implements Component, Focusable {
 		this.paddingX = Number.isFinite(paddingX) ? Math.max(0, Math.floor(paddingX)) : 0;
 		const maxVisible = options.autocompleteMaxVisible ?? 5;
 		this.autocompleteMaxVisible = Number.isFinite(maxVisible) ? Math.max(3, Math.min(20, Math.floor(maxVisible))) : 5;
+		this.promptPrefix = options.promptPrefix ?? "";
+	}
+
+	getPromptPrefix(): string {
+		return this.promptPrefix;
+	}
+
+	setPromptPrefix(prefix: string): void {
+		if (this.promptPrefix !== prefix) {
+			this.promptPrefix = prefix;
+			this.tui.requestRender();
+		}
 	}
 
 	/** Set of currently valid paste IDs, for marker-aware segmentation. */
@@ -482,7 +497,10 @@ export class Editor implements Component, Focusable {
 	render(width: number): string[] {
 		const maxPadding = Math.max(0, Math.floor((width - 1) / 2));
 		const paddingX = Math.min(this.paddingX, maxPadding);
-		const contentWidth = Math.max(1, width - paddingX * 2);
+		const promptPrefix = this.promptPrefix;
+		const prefixWidth = promptPrefix ? visibleWidth(promptPrefix) : 0;
+		const prefixGutter = " ".repeat(prefixWidth);
+		const contentWidth = Math.max(1, width - paddingX * 2 - prefixWidth);
 
 		// Layout width: with padding the cursor can overflow into it,
 		// without padding we reserve 1 column for the cursor.
@@ -536,7 +554,7 @@ export class Editor implements Component, Focusable {
 		// autocomplete (e.g. slash-command menu) is visible.
 		const emitCursorMarker = this.focused;
 
-		for (const layoutLine of visibleLines) {
+		for (const [lineIndex, layoutLine] of visibleLines.entries()) {
 			let displayText = layoutLine.text;
 			let lineVisibleWidth = visibleWidth(layoutLine.text);
 			let cursorInPadding = false;
@@ -574,8 +592,11 @@ export class Editor implements Component, Focusable {
 			const padding = " ".repeat(Math.max(0, contentWidth - lineVisibleWidth));
 			const lineRightPadding = cursorInPadding ? rightPadding.slice(1) : rightPadding;
 
+			// Prompt prefix on the very first layout line, alignment gutter on the rest
+			const gutter = promptPrefix && this.scrollOffset === 0 && lineIndex === 0 ? promptPrefix : prefixGutter;
+
 			// Render the line (no side borders, just horizontal lines above and below)
-			result.push(`${leftPadding}${displayText}${padding}${lineRightPadding}`);
+			result.push(`${leftPadding}${gutter}${displayText}${padding}${lineRightPadding}`);
 		}
 
 		// Render bottom border (with scroll indicator if more content below)
@@ -593,7 +614,7 @@ export class Editor implements Component, Focusable {
 			for (const line of autocompleteResult) {
 				const lineWidth = visibleWidth(line);
 				const linePadding = " ".repeat(Math.max(0, contentWidth - lineWidth));
-				result.push(`${leftPadding}${line}${linePadding}${rightPadding}`);
+				result.push(`${leftPadding}${prefixGutter}${line}${linePadding}${rightPadding}`);
 			}
 		}
 

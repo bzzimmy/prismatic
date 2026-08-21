@@ -9,19 +9,32 @@ const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 const BG_RESET = "\x1b[49m";
 
 describe("UserMessageComponent", () => {
-	test("keeps user message height stable while moving closing OSC markers off line end", () => {
+	test("renders a tight single-line bar with a > prefix and OSC markers", () => {
 		initTheme("dark");
 
 		const component = new UserMessageComponent("hello");
 		const lines = component.render(20);
 
-		expect(lines).toHaveLength(3);
+		expect(lines).toHaveLength(1);
+		expect(lines[0].startsWith(OSC133_ZONE_START)).toBe(true);
+		expect(lines[0].endsWith(OSC133_ZONE_END + OSC133_ZONE_FINAL)).toBe(true);
+		expect(stripAnsi(lines[0])).toContain("> hello");
+		expect(lines[0]).toContain(BG_RESET);
+	});
+
+	test("keeps OSC markers on first/last line and indents wrapped lines", () => {
+		initTheme("dark");
+
+		const component = new UserMessageComponent("one two three four five six seven");
+		const lines = component.render(20);
+
+		expect(lines.length).toBeGreaterThan(1);
 		expect(lines[0]).toContain(OSC133_ZONE_START);
-		expect(lines[0].endsWith(BG_RESET)).toBe(true);
 		expect(lines[0]).not.toContain(OSC133_ZONE_END);
-		expect(lines[1]).toContain("hello");
-		expect(lines[2].startsWith(OSC133_ZONE_END + OSC133_ZONE_FINAL)).toBe(true);
-		expect(lines[2].endsWith(BG_RESET)).toBe(true);
+		expect(lines[lines.length - 1].startsWith(OSC133_ZONE_END + OSC133_ZONE_FINAL)).toBe(true);
+		expect(stripAnsi(lines[0])).toContain("> one");
+		// Continuation lines are indented to align under the first line's text.
+		expect(stripAnsi(lines[1]).startsWith("   ")).toBe(true);
 	});
 
 	test("chains Markdown transformers with user message context", () => {
@@ -30,7 +43,7 @@ describe("UserMessageComponent", () => {
 		const component = new UserMessageComponent("The input is $x^2$.", undefined, 1, [
 			(markdown, context) => {
 				calls.push("formula");
-				expect(context).toEqual({ messageType: "user", isStreaming: false, availableWidth: 78 });
+				expect(context).toEqual({ messageType: "user", isStreaming: false, availableWidth: 76 });
 				return markdown.replace("$x^2$", "x²");
 			},
 			(markdown) => {

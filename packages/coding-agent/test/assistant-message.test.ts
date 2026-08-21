@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { describe, expect, test } from "vitest";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.ts";
+import { formatThinkingDuration } from "../src/modes/interactive/components/thinking-indicator.ts";
 import { UserMessageComponent } from "../src/modes/interactive/components/user-message.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
@@ -69,7 +70,7 @@ describe("AssistantMessageComponent", () => {
 		);
 		const rendered = component.render(80).join("\n");
 
-		expect(rendered).toContain("Thinking...");
+		expect(rendered).toContain("Thought for a while");
 		expect(rendered).toContain("Response was truncated before completion.");
 	});
 
@@ -87,8 +88,34 @@ describe("AssistantMessageComponent", () => {
 		);
 		const rendered = stripAnsi(component.render(80).join("\n"));
 
-		expect(rendered.match(/Thinking\.\.\./g)).toHaveLength(1);
+		expect(rendered.match(/Thought for a while/g)).toHaveLength(1);
 		expect(rendered).toContain("answer");
+	});
+
+	test("shows the thinking label while streaming and a duration once finished", () => {
+		initTheme("dark");
+
+		const component = new AssistantMessageComponent(undefined, true);
+		const streaming = createAssistantMessage([{ type: "thinking", thinking: "partial reasoning" }]);
+		component.updateContent(streaming, true);
+		expect(stripAnsi(component.render(80).join("\n"))).toContain("Thinking...");
+
+		const finished = createAssistantMessage([
+			{ type: "thinking", thinking: "partial reasoning" },
+			{ type: "text", text: "answer" },
+		]);
+		component.updateContent(finished, false);
+		const rendered = stripAnsi(component.render(80).join("\n"));
+		expect(rendered).toMatch(/Thought for \d+s/);
+		expect(rendered).not.toContain("Thinking...");
+		expect(rendered).toContain("answer");
+	});
+
+	test("formats thinking durations", () => {
+		expect(formatThinkingDuration(400)).toBe("1s");
+		expect(formatThinkingDuration(12_000)).toBe("12s");
+		expect(formatThinkingDuration(72_000)).toBe("1m 12s");
+		expect(formatThinkingDuration(120_000)).toBe("2m");
 	});
 
 	test("uses configured output padding for text and thinking", () => {
@@ -106,12 +133,12 @@ describe("AssistantMessageComponent", () => {
 		);
 		const lines = component.render(80).map((line) => stripAnsi(line));
 
-		expect(lines.some((line) => line.includes(" hello"))).toBe(true);
-		expect(lines.some((line) => line.includes(" reasoning"))).toBe(true);
+		expect(lines.some((line) => line.startsWith(" ⏺ hello"))).toBe(true);
+		expect(lines.some((line) => line.startsWith(" reasoning"))).toBe(true);
 
 		component.setOutputPad(0);
 		const updatedLines = component.render(80).map((line) => stripAnsi(line));
-		expect(updatedLines.some((line) => line.startsWith("hello"))).toBe(true);
+		expect(updatedLines.some((line) => line.startsWith("⏺ hello"))).toBe(true);
 		expect(updatedLines.some((line) => line.startsWith("reasoning"))).toBe(true);
 	});
 
@@ -122,7 +149,7 @@ describe("AssistantMessageComponent", () => {
 		const component = new AssistantMessageComponent(message, false, undefined, "Thinking...", 1, [
 			(markdown, context) => {
 				calls.push("formula");
-				expect(context).toEqual({ messageType: "assistant", isStreaming: false, availableWidth: 78 });
+				expect(context).toEqual({ messageType: "assistant", isStreaming: false, availableWidth: 77 });
 				return markdown.replace("$x^2$", "x²");
 			},
 			(markdown) => {
@@ -171,10 +198,10 @@ describe("AssistantMessageComponent", () => {
 			],
 		);
 
-		expect(stripAnsi(component.render(80).join("\n"))).toContain("answer (78)");
+		expect(stripAnsi(component.render(80).join("\n"))).toContain("answer (77)");
 		component.render(80);
-		expect(stripAnsi(component.render(60).join("\n"))).toContain("answer (58)");
-		expect(availableWidths).toEqual([78, 58]);
+		expect(stripAnsi(component.render(60).join("\n"))).toContain("answer (57)");
+		expect(availableWidths).toEqual([77, 57]);
 	});
 
 	test("continues the Markdown transformer chain when a transformer throws", () => {
@@ -232,10 +259,10 @@ describe("AssistantMessageComponent", () => {
 
 		const paddedComponent = new UserMessageComponent("hello", undefined, 1);
 		const paddedLines = paddedComponent.render(40).map((line) => stripAnsi(line));
-		expect(paddedLines.some((line) => line.startsWith(" hello"))).toBe(true);
+		expect(paddedLines.some((line) => line.startsWith(" > hello"))).toBe(true);
 
 		const unpaddedComponent = new UserMessageComponent("hello", undefined, 0);
 		const unpaddedLines = unpaddedComponent.render(40).map((line) => stripAnsi(line));
-		expect(unpaddedLines.some((line) => line.startsWith("hello"))).toBe(true);
+		expect(unpaddedLines.some((line) => line.startsWith("> hello"))).toBe(true);
 	});
 });

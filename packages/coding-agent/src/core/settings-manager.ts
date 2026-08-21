@@ -909,7 +909,8 @@ export class SettingsManager {
 	}
 
 	getHideThinkingBlock(): boolean {
-		return this.settings.hideThinkingBlock ?? false;
+		// Thinking blocks are collapsed by default; ctrl+t (app.thinking.toggle) expands them.
+		return this.settings.hideThinkingBlock ?? true;
 	}
 
 	getShowCacheMissNotices(): boolean {

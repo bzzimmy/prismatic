@@ -605,6 +605,7 @@ export class InteractiveMode {
 		this.defaultEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
 			paddingX: editorPaddingX,
 			autocompleteMaxVisible,
+			promptPrefix: theme.fg("accent", "❯ "),
 		});
 		this.editor = this.defaultEditor;
 		this.editorContainer = new Container();
@@ -3106,6 +3107,7 @@ export class InteractiveMode {
 						this.hiddenThinkingLabel,
 						this.outputPad,
 						this.getMarkdownTransformers(),
+						this.ui,
 					);
 					this.streamingMessage = event.message;
 					this.chatContainer.addChild(this.streamingComponent);
@@ -3541,6 +3543,7 @@ export class InteractiveMode {
 					this.hiddenThinkingLabel,
 					this.outputPad,
 					this.getMarkdownTransformers(),
+					this.ui,
 				);
 				this.chatContainer.addChild(assistantComponent);
 				break;
@@ -4015,6 +4018,8 @@ export class InteractiveMode {
 			const level = this.session.thinkingLevel || "off";
 			this.editor.borderColor = theme.getThinkingBorderColor(level);
 		}
+		// Re-apply prompt prefix so its color tracks theme changes
+		this.defaultEditor.setPromptPrefix(theme.fg("accent", "❯ "));
 		this.ui.requestRender();
 	}
 
