@@ -11,6 +11,7 @@ import {
 	getPackageDir,
 	getSelfUpdateCommand,
 	getSelfUpdateUnavailableInstruction,
+	IS_OFFICIAL_DISTRIBUTION,
 	PACKAGE_NAME,
 	type SelfUpdateCommand,
 	type SelfUpdatePackageTarget,
@@ -474,6 +475,11 @@ interface SelfUpdatePlan {
 }
 
 async function getSelfUpdatePlan(force: boolean): Promise<SelfUpdatePlan> {
+	if (!IS_OFFICIAL_DISTRIBUTION) {
+		throw new Error(
+			`Self-update is disabled in this fork of pi. Update ${APP_NAME} from its git repository instead.`,
+		);
+	}
 	let latestRelease: Awaited<ReturnType<typeof getLatestPiRelease>>;
 	try {
 		latestRelease = await getLatestPiRelease(VERSION, { retry: true });
