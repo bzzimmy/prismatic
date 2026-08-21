@@ -1698,9 +1698,7 @@ export class InteractiveMode {
 			if (loadedSections.length > 0) {
 				const summary = theme.fg(
 					"dim",
-					loadedCounts
-						.map(({ label, count }) => `${count} ${label}${count === 1 ? "" : "s"} loaded`)
-						.join(theme.fg("muted", " · ")),
+					loadedCounts.map(({ label, count }) => `${count} ${label}${count === 1 ? "" : "s"} loaded`).join(" · "),
 				);
 				const expandedBody = loadedSections
 					.map((section) => `${sectionHeader(section.name, section.color)}\n${section.expandedBody}`)
