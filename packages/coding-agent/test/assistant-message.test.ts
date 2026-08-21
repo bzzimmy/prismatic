@@ -111,6 +111,25 @@ describe("AssistantMessageComponent", () => {
 		expect(rendered).toContain("answer");
 	});
 
+	test("keeps measured thinking durations across component rebuilds", () => {
+		initTheme("dark");
+
+		const message = createAssistantMessage([{ type: "thinking", thinking: "reasoning" }]);
+		const first = new AssistantMessageComponent(undefined, true);
+		first.updateContent(message, true); // run active while streaming
+		message.content.push({ type: "text", text: "answer" });
+		first.updateContent(message, false); // finished: duration recorded
+		expect(stripAnsi(first.render(80).join("\n"))).toMatch(/Thought for \d+s/);
+
+		// Simulates a chat rebuild (e.g. after expand/collapse or settings
+		// changes): a fresh component for the same message object must still
+		// show the measured duration instead of the unknown-duration fallback.
+		const rebuilt = new AssistantMessageComponent(message, true);
+		const rendered = stripAnsi(rebuilt.render(80).join("\n"));
+		expect(rendered).toMatch(/Thought for \d+s/);
+		expect(rendered).not.toContain("Thought for a while");
+	});
+
 	test("formats thinking durations", () => {
 		expect(formatThinkingDuration(400)).toBe("1s");
 		expect(formatThinkingDuration(12_000)).toBe("12s");

@@ -11,6 +11,20 @@ const OSC133_ZONE_END = "\x1b]133;B\x07";
 const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
 
 /**
+ * Live-measured thinking durations shared per message object (keyed by the
+ * content index where each thinking run starts). Chat rebuilds create fresh
+ * component instances; sharing by message identity lets them recover the
+ * durations for the lifetime of the in-memory session. WeakMap keeps this
+ * from outliving the messages themselves.
+ *
+ * TODO: Durations are in-memory only, so messages from resumed/reloaded
+ * sessions fall back to "Thought for a while". Persisting them would require
+ * storing the duration in the session format (e.g. an optional field on
+ * thinking content blocks or session entries) at measurement time.
+ */
+const sharedThinkingDurations = new WeakMap<AssistantMessage, Map<number, number>>();
+
+/**
  * Component that renders a complete assistant message
  */
 export class AssistantMessageComponent extends Container {
@@ -112,6 +126,25 @@ export class AssistantMessageComponent extends Container {
 		this.lastMessage = message;
 		this.isStreaming = isStreaming;
 
+		// Sync measured durations with the per-message shared store: restore what
+		// earlier component instances measured, and mirror our own measurements
+		// so instances created after a chat rebuild can find them.
+		let sharedDurations = sharedThinkingDurations.get(message);
+		if (!sharedDurations) {
+			sharedDurations = new Map();
+			sharedThinkingDurations.set(message, sharedDurations);
+		}
+		for (const [runStart, duration] of sharedDurations) {
+			if (!this.thinkingDurations.has(runStart)) {
+				this.thinkingDurations.set(runStart, duration);
+			}
+		}
+		for (const [runStart, duration] of this.thinkingDurations) {
+			if (!sharedDurations.has(runStart)) {
+				sharedDurations.set(runStart, duration);
+			}
+		}
+
 		// Clear content container
 		this.contentContainer.clear();
 
@@ -168,7 +201,9 @@ export class AssistantMessageComponent extends Container {
 				} else {
 					const startTime = this.thinkingStartTimes.get(runStart);
 					if (startTime !== undefined && !this.thinkingDurations.has(runStart)) {
-						this.thinkingDurations.set(runStart, Date.now() - startTime);
+						const duration = Date.now() - startTime;
+						this.thinkingDurations.set(runStart, duration);
+						sharedDurations.set(runStart, duration);
 					}
 				}
 

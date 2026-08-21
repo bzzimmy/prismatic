@@ -4078,18 +4078,16 @@ export class InteractiveMode {
 		this.hideThinkingBlock = !this.hideThinkingBlock;
 		this.settingsManager.setHideThinkingBlock(this.hideThinkingBlock);
 
-		// Rebuild chat from session messages
-		this.chatContainer.clear();
-		this.rebuildChatFromMessages();
-
-		// If streaming, re-add the streaming component with updated visibility and re-render
-		if (this.streamingComponent && this.streamingMessage) {
-			this.streamingComponent.setHideThinkingBlock(this.hideThinkingBlock);
-			this.streamingComponent.updateContent(this.streamingMessage);
-			this.chatContainer.addChild(this.streamingComponent);
+		// Update components in place (setHideThinkingBlock re-renders from the
+		// stored message) instead of rebuilding the chat, so per-message state
+		// like measured thinking durations survives the toggle. This includes
+		// the streaming component, which is also a chat container child.
+		for (const child of this.chatContainer.children) {
+			if (child instanceof AssistantMessageComponent) {
+				child.setHideThinkingBlock(this.hideThinkingBlock);
+			}
 		}
-
-		this.showStatus(`Thinking blocks: ${this.hideThinkingBlock ? "hidden" : "visible"}`);
+		this.ui.requestRender();
 	}
 
 	private async handleOpenExternalEditor(): Promise<void> {
@@ -4522,13 +4520,14 @@ export class InteractiveMode {
 					onHideThinkingBlockChange: (hidden) => {
 						this.hideThinkingBlock = hidden;
 						this.settingsManager.setHideThinkingBlock(hidden);
+						// In-place update keeps per-message state (e.g. thinking durations);
+						// no chat rebuild needed.
 						for (const child of this.chatContainer.children) {
 							if (child instanceof AssistantMessageComponent) {
 								child.setHideThinkingBlock(hidden);
 							}
 						}
-						this.chatContainer.clear();
-						this.rebuildChatFromMessages();
+						this.ui.requestRender();
 					},
 					onMermaidRenderingModeChange: (mode) => {
 						this.settingsManager.setMermaidRenderingMode(mode);
