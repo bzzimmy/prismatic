@@ -1,0 +1,27 @@
+#!/bin/sh
+# Enforce Conventional Commits: type(scope)?: subject
+# https://www.conventionalcommits.org
+
+MSG_FILE="$1"
+SUBJECT=$(head -n 1 "$MSG_FILE")
+
+# Skip merges, reverts, and fixup/squash commits
+case "$SUBJECT" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+
+if ! printf '%s' "$SUBJECT" | grep -qE '^(feat|fix|chore|docs|refactor|test|perf|style|build|ci|revert)(\([a-z0-9./-]+\))?!?: .+'; then
+  echo "❌ Commit message does not follow Conventional Commits." >&2
+  echo "" >&2
+  echo "   Format:  type(scope)?: subject" >&2
+  echo "   Types:   feat fix chore docs refactor test perf style build ci revert" >&2
+  echo "   Example: feat(tui): add prismatic theme selector" >&2
+  echo "" >&2
+  echo "   Got: $SUBJECT" >&2
+  exit 1
+fi
+
+if [ ${#SUBJECT} -gt 72 ]; then
+  echo "❌ Commit subject exceeds 72 characters (${#SUBJECT})." >&2
+  exit 1
+fi
