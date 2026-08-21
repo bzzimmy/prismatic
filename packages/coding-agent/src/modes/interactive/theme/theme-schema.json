@@ -93,6 +93,14 @@
 					"$ref": "#/$defs/colorValue",
 					"description": "Primary accent color (logo, selected items, cursor)"
 				},
+				"logoGradientStart": {
+					"$ref": "#/$defs/colorValue",
+					"description": "Startup logo gradient start color (optional, falls back to accent)"
+				},
+				"logoGradientEnd": {
+					"$ref": "#/$defs/colorValue",
+					"description": "Startup logo gradient end color (optional, falls back to text)"
+				},
 				"border": {
 					"$ref": "#/$defs/colorValue",
 					"description": "Normal borders"

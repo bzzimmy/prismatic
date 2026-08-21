@@ -138,6 +138,7 @@ import {
 	formatAuthSelectorProviderType,
 	OAuthSelectorComponent,
 } from "./components/oauth-selector.ts";
+import { PrismLogo } from "./components/prism-logo.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
 import { SettingsSelectorComponent } from "./components/settings-selector.ts";
@@ -538,6 +539,9 @@ export class InteractiveMode {
 
 	// Built-in header (logo + keybinding hints + changelog)
 	private builtInHeader: Component | undefined = undefined;
+
+	// Animated startup logo (undefined when startup is quiet)
+	private prismLogo: PrismLogo | undefined = undefined;
 
 	// Custom header from extension (undefined = use built-in header)
 	private customHeader: (Component & { dispose?(): void }) | undefined = undefined;
@@ -1007,9 +1011,13 @@ export class InteractiveMode {
 			);
 
 			// Setup UI layout
+			this.prismLogo = new PrismLogo(this.ui);
+			this.headerContainer.addChild(new Spacer(1));
+			this.headerContainer.addChild(this.prismLogo);
 			this.headerContainer.addChild(new Spacer(1));
 			this.headerContainer.addChild(this.builtInHeader);
 			this.headerContainer.addChild(new Spacer(1));
+			this.prismLogo.start();
 		} else {
 			// Minimal header when silenced
 			this.builtInHeader = new Text("", 0, 0);
@@ -1041,6 +1049,7 @@ export class InteractiveMode {
 		onThemeChange(() => {
 			this.ui.invalidate();
 			this.updateEditorBorderColor();
+			this.prismLogo?.refresh();
 			this.ui.requestRender();
 		});
 
@@ -2355,6 +2364,9 @@ export class InteractiveMode {
 		const index = this.headerContainer.children.indexOf(currentHeader);
 
 		if (factory) {
+			// Custom headers take over the full header area; hide the built-in logo
+			this.prismLogo?.stop();
+			this.prismLogo?.setText("");
 			// Create and add custom header
 			this.customHeader = factory(this.ui, theme);
 			if (isExpandable(this.customHeader)) {
@@ -2369,6 +2381,7 @@ export class InteractiveMode {
 		} else {
 			// Restore built-in header
 			this.customHeader = undefined;
+			this.prismLogo?.refresh();
 			if (isExpandable(this.builtInHeader)) {
 				this.builtInHeader.setExpanded(this.toolOutputExpanded);
 			}

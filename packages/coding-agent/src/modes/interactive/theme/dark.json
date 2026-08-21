@@ -21,6 +21,8 @@
 	},
 	"colors": {
 		"accent": "accent",
+		"logoGradientStart": "#a78bfa",
+		"logoGradientEnd": "#f5f3ff",
 		"border": "blue",
 		"borderAccent": "cyan",
 		"borderMuted": "darkGray",

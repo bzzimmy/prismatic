@@ -36,6 +36,8 @@ const ThemeJsonSchema = Type.Object({
 	colors: Type.Object({
 		// Core UI (10 colors)
 		accent: ColorValueSchema,
+		logoGradientStart: Type.Optional(ColorValueSchema),
+		logoGradientEnd: Type.Optional(ColorValueSchema),
 		border: ColorValueSchema,
 		borderAccent: ColorValueSchema,
 		borderMuted: ColorValueSchema,
@@ -112,6 +114,8 @@ const validateThemeJson = Compile(ThemeJsonSchema);
 
 export type ThemeColor =
 	| "accent"
+	| "logoGradientStart"
+	| "logoGradientEnd"
 	| "border"
 	| "borderAccent"
 	| "borderMuted"
@@ -169,7 +173,7 @@ export type ThemeBg =
 	| "toolSuccessBg"
 	| "toolErrorBg";
 
-type OptionalThemeColor = "thinkingMax" | "searchMatchText";
+type OptionalThemeColor = "thinkingMax" | "searchMatchText" | "logoGradientStart" | "logoGradientEnd";
 type OptionalThemeBg = "scrollbarThumb" | "searchMatchBg";
 
 type ColorMode = "truecolor" | "256color";
@@ -270,6 +274,43 @@ function hexTo256(hex: string): number {
 	return rgbTo256(r, g, b);
 }
 
+const BASIC_ANSI_RGB: Array<[number, number, number]> = [
+	[0, 0, 0],
+	[205, 49, 49],
+	[13, 188, 121],
+	[229, 229, 16],
+	[36, 114, 200],
+	[188, 63, 188],
+	[17, 168, 205],
+	[229, 229, 229],
+	[102, 102, 102],
+	[241, 76, 76],
+	[35, 209, 139],
+	[245, 245, 67],
+	[59, 142, 234],
+	[214, 112, 214],
+	[41, 184, 219],
+	[255, 255, 255],
+];
+
+/** Convert a 256-color palette index to its RGB value (xterm palette). */
+function ansi256ToRgb(index: number): RgbColor {
+	if (index < 16) {
+		const [r, g, b] = BASIC_ANSI_RGB[index] ?? [0, 0, 0];
+		return { r, g, b };
+	}
+	if (index < 232) {
+		const cube = index - 16;
+		return {
+			r: CUBE_VALUES[Math.floor(cube / 36) % 6],
+			g: CUBE_VALUES[Math.floor(cube / 6) % 6],
+			b: CUBE_VALUES[cube % 6],
+		};
+	}
+	const gray = GRAY_VALUES[Math.min(index - 232, 23)];
+	return { r: gray, g: gray, b: gray };
+}
+
 function fgAnsi(color: string | number, mode: ColorMode): string {
 	if (color === "") return "\x1b[39m";
 	if (typeof color === "number") return `\x1b[38;5;${color}m`;
@@ -334,6 +375,8 @@ function withThemeColorFallbacks(colors: ThemeJson["colors"]): ThemeJson["colors
 	scrollbarThumb: ColorValue;
 	searchMatchBg: ColorValue;
 	searchMatchText: ColorValue;
+	logoGradientStart: ColorValue;
+	logoGradientEnd: ColorValue;
 } {
 	return {
 		...colors,
@@ -341,6 +384,8 @@ function withThemeColorFallbacks(colors: ThemeJson["colors"]): ThemeJson["colors
 		scrollbarThumb: colors.scrollbarThumb ?? colors.selectedBg,
 		searchMatchBg: colors.searchMatchBg ?? colors.selectedBg,
 		searchMatchText: colors.searchMatchText ?? colors.text,
+		logoGradientStart: colors.logoGradientStart ?? colors.accent,
+		logoGradientEnd: colors.logoGradientEnd ?? colors.text,
 	};
 }
 
@@ -353,6 +398,7 @@ export class Theme {
 	readonly sourcePath?: string;
 	sourceInfo?: SourceInfo;
 	private fgColors: Map<ThemeColor, string>;
+	private rawFgColors: Map<ThemeColor, string | number>;
 	private bgColors: Map<ThemeBg, string>;
 	private mode: ColorMode;
 
@@ -373,7 +419,10 @@ export class Theme {
 			...fgColors,
 			thinkingMax: fgColors.thinkingMax ?? fgColors.thinkingXhigh,
 			searchMatchText: fgColors.searchMatchText ?? fgColors.text,
+			logoGradientStart: fgColors.logoGradientStart ?? fgColors.accent,
+			logoGradientEnd: fgColors.logoGradientEnd ?? fgColors.text,
 		};
+		this.rawFgColors = new Map(Object.entries(colors) as [ThemeColor, string | number][]);
 		for (const [key, value] of Object.entries(colors) as [ThemeColor, string | number][]) {
 			this.fgColors.set(key, fgAnsi(value, mode));
 		}
@@ -424,6 +473,23 @@ export class Theme {
 		const ansi = this.fgColors.get(color);
 		if (!ansi) throw new Error(`Unknown theme color: ${color}`);
 		return ansi;
+	}
+
+	/** Resolve a theme color to its RGB value, or undefined for terminal-default ("") colors. */
+	getFgRgb(color: ThemeColor): RgbColor | undefined {
+		const raw = this.rawFgColors.get(color);
+		if (raw === undefined || raw === "") return undefined;
+		if (typeof raw === "number") return ansi256ToRgb(raw);
+		return hexToRgb(raw);
+	}
+
+	/** Color text with an arbitrary RGB foreground, downsampling to 256 colors when needed. */
+	fgRgb(rgb: RgbColor, text: string): string {
+		const ansi =
+			this.mode === "truecolor"
+				? `\x1b[38;2;${rgb.r};${rgb.g};${rgb.b}m`
+				: `\x1b[38;5;${rgbTo256(rgb.r, rgb.g, rgb.b)}m`;
+		return `${ansi}${text}\x1b[39m`;
 	}
 
 	getBgAnsi(color: ThemeBg): string {

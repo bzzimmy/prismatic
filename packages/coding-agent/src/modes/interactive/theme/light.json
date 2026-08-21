@@ -20,6 +20,8 @@
 	},
 	"colors": {
 		"accent": "teal",
+		"logoGradientStart": "#7c3aed",
+		"logoGradientEnd": "#2e1065",
 		"border": "blue",
 		"borderAccent": "teal",
 		"borderMuted": "lightGray",
