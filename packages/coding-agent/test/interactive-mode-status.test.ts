@@ -163,7 +163,7 @@ describe("InteractiveMode.setToolsExpanded", () => {
 		expect(header.setExpanded).toHaveBeenCalledWith(true);
 		expect(loadedResourcesChild.setExpanded).toHaveBeenCalledWith(true);
 		expect(chatChild.setExpanded).toHaveBeenCalledWith(true);
-		expect(fakeThis.showStatus).toHaveBeenCalledWith("Tool output: expanded");
+		expect(fakeThis.showStatus).not.toHaveBeenCalled();
 	});
 });
 
@@ -794,21 +794,22 @@ describe("InteractiveMode.showLoadedResources", () => {
 		});
 
 		expect(normalizeRenderedOutput(fakeThis.loadedResourcesContainer)).toMatchInlineSnapshot(`
-"[Extensions]
-  project
-    /tmp/project/.pi/extensions/answer.ts
-    /tmp/project/.pi/extensions/local-index
-    git:github.com/HazAT/pi-interactive-subagents
-      extensions
-      extensions/subagents
-    npm:@scope/pi-scoped
-      extensions
-    npm:pi-markdown-preview
-      extensions
-  user
-    /tmp/agent/extensions/user-index
-  path
-    /tmp/temp/cli-extension.ts"`);
+			"[Extensions]
+			   project
+			     /tmp/project/.pi/extensions/answer.ts
+			     /tmp/project/.pi/extensions/local-index
+			     git:github.com/HazAT/pi-interactive-subagents
+			       extensions
+			       extensions/subagents
+			     npm:@scope/pi-scoped
+			       extensions
+			     npm:pi-markdown-preview
+			       extensions
+			   user
+			     /tmp/agent/extensions/user-index
+			   path
+			     /tmp/temp/cli-extension.ts"
+		`);
 	});
 
 	test("shows context paths relative to cwd while preserving full external paths", () => {

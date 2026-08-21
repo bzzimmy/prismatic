@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ENV_AGENT_DIR } from "../../../src/config.ts";
 
 /**
  * Regression test for https://github.com/earendil-works/pi-mono/issues/2791
@@ -51,7 +52,7 @@ describe("issue #2791 fs.watch error event crashes process", () => {
 			`
 import { setTheme, stopThemeWatcher } from "${themeModulePath}";
 
-process.env.PI_CODING_AGENT_DIR = "${agentDir}";
+process.env["${ENV_AGENT_DIR}"] = "${agentDir}";
 
 setTheme("custom-test", true);
 

@@ -1,10 +1,19 @@
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { shouldRunFirstTimeSetup } from "../src/cli/startup-ui.ts";
 import { ENV_AGENT_DIR } from "../src/config.ts";
 import { SettingsManager } from "../src/core/settings-manager.ts";
+
+// First-time setup is gated to the official pi distribution; mock the official
+// branding so the upstream gating logic itself stays tested in this fork.
+vi.mock("../src/config.ts", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../src/config.ts")>()),
+	APP_NAME: "pi",
+	CONFIG_DIR_NAME: ".pi",
+	PACKAGE_NAME: "@earendil-works/pi-coding-agent",
+}));
 
 describe("shouldRunFirstTimeSetup", () => {
 	const originalPiExperimental = process.env.PI_EXPERIMENTAL;

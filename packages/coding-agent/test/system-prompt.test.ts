@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { APP_NAME } from "../src/config.ts";
 import { buildSystemPrompt } from "../src/core/system-prompt.ts";
 
 describe("buildSystemPrompt", () => {
@@ -54,7 +55,7 @@ describe("buildSystemPrompt", () => {
 			});
 
 			expect(prompt).toContain(
-				"- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory",
+				`- When reading ${APP_NAME} docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory`,
 			);
 			expect(prompt).toContain("environment variables (docs/environment-variables.md)");
 		});

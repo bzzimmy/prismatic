@@ -9,6 +9,13 @@ import {
 } from "../src/utils/version-check.ts";
 import { allowNetwork } from "./test-network-env.ts";
 
+// This fork disables upstream release checks (IS_OFFICIAL_DISTRIBUTION is false).
+// Mock the official distribution so the upstream version-check logic stays tested.
+vi.mock("../src/config.ts", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../src/config.ts")>()),
+	IS_OFFICIAL_DISTRIBUTION: true,
+}));
+
 const originalSkipVersionCheck = process.env.PI_SKIP_VERSION_CHECK;
 
 beforeEach(() => {
